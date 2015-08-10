@@ -1,3 +1,9 @@
 [submodule "pandoc-templates"]
 	path = pandoc-templates
 	url = https://github.com/jgm/pandoc-templates.git
+[submodule "pandoc-workflow"]
+	path = pandoc-workflow
+	url = https://github.com/dhcolumbia/pandoc-workflow.git
+[submodule "opensym2014"]
+	path = opensym2014
+	url = https://github.com/jakobib/opensym2014.git
