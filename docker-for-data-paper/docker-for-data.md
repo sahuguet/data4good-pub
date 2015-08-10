@@ -22,7 +22,7 @@ abstract: |
 
   Someone – a civic hacker, a data journalist or a researcher in academia – willing to make sense of the data usually has to go through the following steps: (a) find the datasets they need, (b) download the datasets, (c) realize they are missing a few, and download those too, (d) create a schema and load the datasets into a database, (e) join the datasets into one or more views that permit analysisand finally (f) run queries against the dataset. This is not only time consuming (usually half a day of work) but also extremely frustrating. The process must be repeated whenever the datasets get updated.
 
-  In this paper, we present a novel approach for packaging open data we call Docker-for-Data, inspired by the eponymous cloud container solution. Docker "allows you to package an application with all of its dependencies into a standardized unit for software development". With Docker for Data, we package datasets into coherent and self-contained units that can be deployed with a few clicks and used within minutes instead of hours.  We also present a concrete application in the context of open data investigation centered around the issue of housing costs in the context of New York City.
+  In this paper, we present a novel approach for packaging open data we call Docker for Data, inspired by the eponymous cloud container solution. Docker "allows you to package an application with all of its dependencies into a standardized unit for software development". With Docker for Data, we package datasets into coherent and self-contained units that can be deployed with a few clicks and used within minutes instead of hours.  We also present a concrete application in the context of open data investigation centered around the issue of housing costs in the context of New York City.
 permission: You are free to share and adapt this document for any purpose.
 license: CC-Zero
 conference2:
@@ -38,9 +38,9 @@ Open data has received a lot of attention. Some speak of open data as revolution
 
 But in practice, the reality is somewhat different as described by some leaders of the opendata movement, e.g. [@Headd2015-cr,@Wellington_undated-ws]. Here is a somewhat contrived view of a the current situation. Someone – a civic hacker, a data journalist or a researcher in academia – willing to make sense of the data usually has to go through the following steps: (a) find the datasets they need, (b) realize that they are missing a few, (c) download the datasets, (d) create a schema and load the datasets into a database, (e) join the dataset into one or more views that make sense and finally (f) run queries against the dataset. This is not only time consuming (usually half a day of work) but also extremely frustrating. And the process has to be repeated whenever the datasets get updated.
 
-In this paper, we present a novel approach to packaging opendata datasets called Docker-for-Data – inspired by the eponymous [@Docker_undated-hb] cloud container solution –  where we package datasets into coherent and self-contained units that can be deployed with a few clicks and used within minutes. 
+In this paper, we present a novel approach to packaging opendata datasets called Docker for Data – inspired by the eponymous [@Docker_undated-hb] cloud container solution –  where we package datasets into coherent and self-contained units that can be deployed with a few clicks and used within minutes. 
 
-The rest of this paper is organized as follows. We start with a motivating example of opendata in the context of affordable housing in New York City and the diffulties one faces when trying to make sense of the data. We then describe the architecture of Docker-for-Data and show how it can be applied for our example. Before we conclude, we present some related and future work in this space. 
+The rest of this paper is organized as follows. We start with a motivating example of opendata in the context of real estate speculation in New York City and the diffulties one faces when trying to make sense of the data. We then describe the architecture of Docker for Data and show how it can be applied for our example. Before we conclude, we present some related and future work in this space. 
 
 # Motivation
 In the current state, if you are interested in exploring or answering questions using opendata, you have a few options.
@@ -74,16 +74,16 @@ The data is open, but the process of using it is still so difficult as to discou
 # Architecture & Implementation
 
 Let's start with a little terminology.
-We have some data sources, usually city or agency data portals running software like Socrata or CKAN. Each data source contains one or more datasets, usually CSV files. Docker-for-data defines recipes that map datasets into data dumps.
+We have some data sources, usually city or agency data portals running software like Socrata or CKAN. Each data source contains one or more datasets, usually CSV files. Docker for data defines recipes that map datasets into data dumps.
 
-For Docker-for-data, we are  using Postgres as the database. A recipe defines a relational schema for a given dataset and describes the translation from a CSV file or shapefile into a Posgres data dump. For each dataset, there is a corresponding recipe. Using existing metadata from the dataset, the translation can be done automatically.
+For Docker for data, we are  using Postgres as the database. A recipe defines a relational schema for a given dataset and describes the translation from a CSV file or shapefile into a Posgres data dump. For each dataset, there is a corresponding recipe. Using existing metadata from the dataset, the translation can be done automatically.
 Other recipes can be defined manually, to combine datasets together, either as relational views or brand new tables.
 
 The GovLab maintains a build server, whose processes can be viewed at build.dockerfordata.com, which reads the recipes and uploads the SQL output to S3.   The build server is also packaged as a Docker container and could easily be run by a third party.
 
 Our docker client (deployed by our user) makes it easy to look for recipes, download the corresponding data dump locally and load the data into the database.
 
-The architecture of the docker-for-data is described in Figure 1.
+The architecture of the Docker for Data is described in Figure 1.
 
 ![Our architecture](images/docker-for-data-archi.png)
 
@@ -237,14 +237,16 @@ FROM "socrata/data.cityofnewyork.us".acris_real_property_legals l,
       m.good_through_date = l.good_through_date;
 CREATE INDEX deeds_legals_docid ON deeds_legals (document_id);
 
-CREATE VIEW deeds AS
+CREATE TABLE deeds AS
 SELECT m.*, l.easement, l.partial_lot, l.air_rights, l.subterranean_rights,
        l.property_type, l.addr_unit, party_type,
-      p.name, p.addr1, p.addr2, p.country, p.city, p.state, p.zip, pl.*
+      p.name, p.addr1, p.addr2, p.country, p.city, p.state, p.zip, pl.bbl, pl.cd,
+      pl.ct2010, pl.cb2010, pl.council, pl.zipcode, pl.address, pl.unitsres,
+      pl.unitstotal, pl.yearbuilt, pl.condono, pl.geom
 FROM deeds_legals l, deeds_master m, deeds_parties p, "contrib/us/ny/nyc".pluto pl
-WHERE
-l.document_id = m.document_id AND m.document_id = p.document_id AND
-l.bbl = pl.bbl;
+WHERE l.document_id = m.document_id
+      AND m.document_id = p.document_id
+      AND l.bbl = pl.bbl;
 ~~~~~~~
 
 The command to install Docker for Data is:
@@ -260,14 +262,29 @@ The command to download the dataset and load it into the local container is:
 d4d install nyc/deeds
 ~~~~~~~
 
+Installing the deeds table will take about five minutes on a high-speed connection, with the resulting table having about 10 million rows.
+
 To run a query, simply type the following command and you are inside a Postgres environment, with all the tables loaded for you and ready to be queried.
 
 ~~~~~~~
 d4d psql
 ~~~~~~~
 
-Installing the deeds table will take about five minutes on a high-speed connection.
+For example, for a list of the top 100 addresses most often used when buying or selling properties, one would only need this query:
 
+~~~~~~~
+SELECT
+  COUNT(DISTINCT document_id) num_transactions,
+  COUNT(DISTINCT geom) num_properties,
+  COUNT(DISTINCT name) num_names,
+  MIN(document_date) first_purchase,
+  MAX(document_date) last_purchase,
+  addr1 address
+FROM deeds
+GROUP BY addr1 
+ORDER BY COUNT(DISTINCT geom) DESC
+LIMIT 100;
+~~~~~~~
 
 Docker for Data is already being used by data activists in New York.  The Real Estate Investment Cooperative ([REIC](http://nycreic.com/)) has used the real estate data from Docker for Data to visualize “flips” in the city, or properties that have sold at 50%+ markups in less than two years.
 
@@ -286,16 +303,16 @@ Socrata [@Socrata_undated-su] and CKAN [@Dietrich2009-rx] are the two main opend
 Hosted datasets, e.g. Amazon, Google, provide prepackaged solutions that do not always offer enough flexibilities. Open civic data is very location-centric and such solutions are often weak in terms of GIS features.
 In both cases, the end user must rely on somebody else hosted solution. Uploading proprietary data or logic is problematic.
 
-Docker-for-Data is not the first attempt at packaging data in an end-user friendly way. The city of Philadelphia was experimenting with sqlite bundles on its opendata portal [@Headd2013-oa]. The PC-AXIS file format [@noauthor_2013-je] is an attempt at making datasets optimized for OLAP applications with rolling-up and drilling-down queries.
+Docker for Data is not the first attempt at packaging data in an end-user friendly way. The city of Philadelphia was experimenting with sqlite bundles on its opendata portal [@Headd2013-oa]. The PC-AXIS file format [@noauthor_2013-je] is an attempt at making datasets optimized for OLAP applications with rolling-up and drilling-down queries.
 
 ## Future work
 With minimal work, we could increase the number of automatically collected datasets.  We only automatically generate recipes for datasets posted on Socrata data portals. It should be possible to include CKAN portals into the automatically generated mix.
 
-While it’s possible to add your own recipes to Docker-for-Data, the tooling could use improvement.  Developing a parallel tool to the client “d4d” tool called “b4d” to make it easy to write and contribute new recipes would be essential to allowing people to contribute their work.   The toolchain could take advantage of interactive tools like iPython to save a workflow as a recipe.
+While it’s possible to add your own recipes to Docker for Data, the tooling could use improvement.  Developing a parallel tool to the client “d4d” tool called “b4d” to make it easy to write and contribute new recipes would be essential to allowing people to contribute their work.   The toolchain could take advantage of interactive tools like iPython to save a workflow as a recipe.
 
 The client is still very simple, and not clever enough to eliminate unneeded artifacts, requirements, and temporary tables.  This means that data can end up being duplicated on S3.
 
-Since Docker-for-Data is packaged as a container, it would be possible to add additional modules, also packaged as containers, that supply visualization output or database administration outside of the command line. Recipes could contain pre-packaged templates and queries that can be activated with the addition of the necessary module.  
+Since Docker for Data is packaged as a container, it would be possible to add additional modules, also packaged as containers, that supply visualization output or database administration outside of the command line. Recipes could contain pre-packaged templates and queries that can be activated with the addition of the necessary module.  
 
 Datasets are not currently versioned, and when updates happen the assumption must be to throw away the old data and replace it with the new.  There could be efficiencies with projects like dat or within S3 itself to version and stream only changed sections of data.
 
@@ -305,6 +322,6 @@ Using the large collection of pre-collected data and extensive schema available,
 
 # Conclusion
 
-As we advocated in a related paper [@Sahuguet2014-px], opendata is really data "of the people, by the people, for the people". The current effort to make lots of data open is great, but this is just tackling the first step, publishing. Make this data easy to download and use is really the next step and this is the problem we are trying to solve with Docker-for-Data. Borrowing from the Docker (Docker ) play-book (and DevOps more generally), we propose a way to package datasets into self-contained data bundles that be deployed quickly and easily. We also present a concrete application for real-estate data in New York City.
+As we advocated in a related paper [@Sahuguet2014-px], opendata is really data "of the people, by the people, for the people". The current effort to make lots of data open is great, but this is just tackling the first step, publishing. Make this data easy to download and use is really the next step and this is the problem we are trying to solve with Docker for Data. Borrowing from the Docker (Docker ) play-book (and DevOps more generally), we propose a way to package datasets into self-contained data bundles that be deployed quickly and easily. We also present a concrete application for real-estate data in New York City.
 
 # References
