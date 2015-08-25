@@ -1,0 +1,1 @@
+pandoc --latex-engine=xelatex -s -f markdown -o opendata-calculus.pdf --template=sigproc-pandoc-template.tex --csl=acm-sig-proceedings.csl --bibliography references.bib opendata-calculus.md metadata.yaml
